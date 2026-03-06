@@ -135,7 +135,7 @@ function initTabs() {
 // ==========================================
 async function loadCards() {
   try {
-    const response = await fetch('/cards_data.json');
+    const response = await fetch('./cards_data.json');
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     STATE.cards = await response.json();
     document.getElementById('footerInfo').textContent =
