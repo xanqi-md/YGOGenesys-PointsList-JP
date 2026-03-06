@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Yu-Gi-Oh! Genesis Format Point List</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- CDN Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <!-- ヘッダー -->
+  <header class="app-header">
+    <div class="header-inner">
+      <h1 class="app-title">⚔️ Yu-Gi-Oh! Genesis Points</h1>
+      <p class="app-subtitle">カード検索・デッキ構築ツール</p>
+    </div>
+  </header>
+
+  <!-- タブナビゲーション -->
+  <nav class="tab-nav" id="tabNav">
+    <button class="tab-btn active" data-tab="list">📋 カード一覧</button>
+    <button class="tab-btn" data-tab="deck">🃏 デッキ構築</button>
+  </nav>
+
+  <!-- カード一覧タブ -->
+  <div class="tab-content active" id="tab-list">
+    <div class="search-area">
+      <div class="search-row">
+        <div class="search-input-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchInput" class="search-input" placeholder="カード名を検索 (archetype:, race:, attr: も使用可)" />
+          <button id="clearSearch" class="clear-btn" title="クリア">✕</button>
+        </div>
+        <select id="sortSelect" class="select-input">
+          <option value="points-desc">ポイント降順</option>
+          <option value="points-asc">ポイント昇順</option>
+          <option value="name">カード名順</option>
+        </select>
+      </div>
+      <div class="filter-row">
+        <label class="filter-label">ポイント範囲:</label>
+        <input type="number" id="pointMin" class="point-input" value="0" min="0" max="200" />
+        <span>〜</span>
+        <input type="number" id="pointMax" class="point-input" value="200" min="0" max="200" />
+        <span id="resultCount" class="result-count">0件</span>
+      </div>
+    </div>
+
+    <div id="cardList" class="card-list">
+      <div class="loading-spinner">
+        <div class="spinner"></div>
+        <p>カードデータを読み込み中...</p>
+      </div>
+    </div>
+
+    <div class="pagination" id="pagination"></div>
+  </div>
+
+  <!-- デッキ構築タブ -->
+  <div class="tab-content" id="tab-deck">
+    <!-- デッキ管理バー -->
+    <div class="deck-manager">
+      <div class="deck-tabs-row" id="deckTabsRow">
+        <!-- デッキタブが動的に生成される -->
+      </div>
+      <div class="deck-controls-row">
+        <input type="text" id="deckNameInput" class="deck-name-input" placeholder="デッキ名" value="新しいデッキ" />
+        <button id="saveDeckBtn" class="btn btn-outline" title="保存">💾 保存</button>
+        <button id="deleteDeckBtn" class="btn btn-danger" title="削除">🗑️ 削除</button>
+        <button id="newDeckBtn" class="btn btn-ghost" title="新規作成">➕ 新規</button>
+      </div>
+    </div>
+
+    <!-- デッキ統計 -->
+    <div class="deck-stats-bar">
+      <span id="statMain" class="stat-badge red">メイン: 0 (40-60)</span>
+      <span id="statEx" class="stat-badge green">EX: 0 (0-15)</span>
+      <span id="statSide" class="stat-badge green">サイド: 0 (0-15)</span>
+      <span id="statPoints" class="stat-badge red">合計: 0 / 100 pt</span>
+    </div>
+
+    <!-- デッキ操作ボタン -->
+    <div class="deck-actions">
+      <div class="point-limit-wrap">
+        <label>制限:</label>
+        <select id="pointLimitSelect" class="select-input">
+          <option value="50">50 pt</option>
+          <option value="100" selected>100 pt</option>
+          <option value="150">150 pt</option>
+        </select>
+      </div>
+      <button id="exportPdfBtn" class="btn btn-primary">📄 PDF保存</button>
+      <button id="exportYdkBtn" class="btn btn-accent">YDK出力</button>
+      <label class="btn btn-outline" style="cursor:pointer;">
+        YDK読込
+        <input type="file" id="importYdkInput" accept=".ydk" style="display:none;" />
+      </label>
+    </div>
+
+    <!-- デッキ + グラフ エリア -->
+    <div class="deck-layout">
+      <!-- デッキセクション -->
+      <div class="deck-sections" id="deckSections">
+        <!-- メインデッキ -->
+        <div class="deck-section" id="section-main">
+          <div class="section-header">
+            <h3>⚔️ メインデッキ</h3>
+            <span id="mainCount" class="section-count red">0枚 (40-60)</span>
+          </div>
+          <div class="card-grid droppable" id="main-grid" data-section="main">
+            <div class="drop-hint">カードをドラッグして追加</div>
+          </div>
+        </div>
+
+        <!-- EXデッキ -->
+        <div class="deck-section" id="section-ex">
+          <div class="section-header">
+            <h3>✨ EXデッキ</h3>
+            <span id="exCount" class="section-count green">0枚 (0-15)</span>
+          </div>
+          <div class="card-grid droppable" id="ex-grid" data-section="ex">
+            <div class="drop-hint">カードをドラッグして追加</div>
+          </div>
+        </div>
+
+        <!-- サイドデッキ -->
+        <div class="deck-section" id="section-side">
+          <div class="section-header">
+            <h3>🔄 サイドデッキ</h3>
+            <span id="sideCount" class="section-count green">0枚 (0-15)</span>
+          </div>
+          <div class="card-grid droppable" id="side-grid" data-section="side">
+            <div class="drop-hint">カードをドラッグして追加</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- グラフ -->
+      <div class="chart-wrap">
+        <h4>メインデッキ構成</h4>
+        <canvas id="deckChart" width="200" height="200"></canvas>
+        <div id="chartLegend" class="chart-legend"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- フッター -->
+  <footer class="app-footer">
+    <p>Yu-Gi-Oh! Genesis Format Point List</p>
+    <p id="footerInfo" class="footer-info">読み込み中...</p>
+  </footer>
+
+  <!-- カード詳細モーダル -->
+  <div class="modal-overlay" id="cardModal">
+    <div class="modal-content">
+      <button class="modal-close" id="modalClose">✕</button>
+      <div class="modal-header">
+        <h2 id="modalCardName">カード名</h2>
+        <div class="modal-badges">
+          <span id="modalPoints" class="points-badge">0pt</span>
+          <span id="modalRarity" class="rarity-badge"></span>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="modal-image-wrap">
+          <img id="modalCardImage" src="" alt="カード画像" class="modal-card-image" />
+        </div>
+        <div class="modal-info">
+          <div class="info-grid" id="modalInfoGrid"></div>
+          <div class="desc-box">
+            <span class="desc-label">効果テキスト</span>
+            <p id="modalDesc" class="desc-text"></p>
+          </div>
+          <div class="modal-actions">
+            <button id="modalAddMain" class="btn btn-primary">デッキに追加</button>
+            <button id="modalAddSide" class="btn btn-accent">サイドに追加</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- トースト通知 -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- PDF出力用隠しテーブル -->
+  <div id="pdfContent" style="display:none; padding:20px; background:white; color:black; width:800px; font-family:sans-serif;">
+    <h1 id="pdfTitle" style="font-size:24px; font-weight:bold; margin-bottom:10px;"></h1>
+    <p id="pdfPoints" style="margin-bottom:20px;"></p>
+    <div id="pdfMainTable"></div>
+    <div id="pdfExTable"></div>
+    <div id="pdfSideTable"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
